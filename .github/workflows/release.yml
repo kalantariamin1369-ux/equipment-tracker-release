@@ -36,13 +36,13 @@ jobs:
     - name: MSBuild restore (fallback)
       run: msbuild "${{ steps.paths.outputs.solution }}" /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="${{ steps.paths.outputs.workdir }}\\"
 
-    - name: Build application (solution)
-      run: msbuild "${{ steps.paths.outputs.solution }}" /t:Build /p:Configuration=Release /p:Platform="Any CPU"
+    - name: Build application (solution, x64)
+      run: msbuild "${{ steps.paths.outputs.solution }}" /t:Build /p:Configuration=Release /p:Platform="x64"
 
     - name: Verify build output
       shell: pwsh
       run: |
-        $exe = "EquipmentTracker\bin\Release\EquipmentTracker.exe"
+        $exe = "EquipmentTracker\\bin\\Release\\EquipmentTracker.exe"
         if (-not (Test-Path $exe)) { Write-Error "Missing exe: $exe" }
 
     - name: Create release directory
@@ -57,29 +57,11 @@ jobs:
         Copy-Item "EquipmentTracker/bin/Release/*.dll" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
         Copy-Item "EquipmentTracker/bin/Release/*.pdb" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
 
-    - name: Fallback copy SQLite native binaries
-      shell: pwsh
-      run: |
-        $pkgRoots = @(
-          (Join-Path $PWD 'packages'),
-          "$env:USERPROFILE\.nuget",
-          "$env:LOCALAPPDATA\NuGet"
-        )
-        foreach ($root in $pkgRoots) {
-          if (Test-Path $root) {
-            $sqlite = Get-ChildItem -Recurse -Directory $root -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'Stub.System.Data.SQLite.Core.NetFramework*' } | Select-Object -First 1
-            if ($sqlite) {
-              Copy-Item -Recurse "$($sqlite.FullName)\**\*.dll" "release\EquipmentTracker\" -ErrorAction SilentlyContinue
-              break
-            }
-          }
-        }
-
     - name: Copy documentation
       run: |
-        Copy-Item "README.md" "release/EquipmentTracker/"
-        Copy-Item "LICENSE" "release/EquipmentTracker/"
-        Copy-Item "CHANGELOG.md" "release/EquipmentTracker/"
+        Copy-Item "README.md" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
+        Copy-Item "LICENSE" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
+        Copy-Item "CHANGELOG.md" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
 
     - name: Create installation script
       run: |
