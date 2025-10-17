@@ -20,11 +20,11 @@ jobs:
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v2
 
-    - name: NuGet restore (project)
-      run: nuget restore EquipmentTracker/EquipmentTracker.csproj
+    - name: NuGet restore (solution)
+      run: nuget restore EquipmentTracker/EquipmentTracker.sln -PackagesDirectory packages
 
     - name: MSBuild restore (fallback)
-      run: msbuild EquipmentTracker/EquipmentTracker.csproj /t:Restore
+      run: msbuild EquipmentTracker/EquipmentTracker.sln /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="$(System.DefaultWorkingDirectory)\\"
 
     - name: Build application (project)
       run: msbuild EquipmentTracker/EquipmentTracker.csproj /t:Build /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath="$(ProjectDir)bin\\Release\\"
