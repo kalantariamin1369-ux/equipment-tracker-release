@@ -37,7 +37,7 @@ jobs:
       run: msbuild "${{ steps.paths.outputs.solution }}" /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="${{ steps.paths.outputs.workdir }}\\"
 
     - name: Build application (project)
-      run: msbuild "${{ steps.paths.outputs.project }}" /t:Build /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath="$(ProjectDir)bin\\Release\\"
+      run: msbuild "${{ steps.paths.outputs.project }}" /t:Build /p:Configuration=Release /p:Platform="Any CPU"
 
     - name: Verify build output
       shell: pwsh
