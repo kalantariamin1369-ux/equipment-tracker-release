@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <Project ToolsVersion="15.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
   <PropertyGroup>
@@ -39,6 +40,11 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
+    <!-- Explicit SQLite managed assembly reference to ensure copy to bin -->
+    <Reference Include="System.Data.SQLite">
+      <HintPath>packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\lib\net48\System.Data.SQLite.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
   </ItemGroup>
   <ItemGroup>
     <Compile Include="EquipmentRepository.cs" />
@@ -59,6 +65,12 @@
     </None>
     <None Include="App.config" />
   </ItemGroup>
+  <!-- Ensure native SQLite DLLs are copied alongside the exe on build -->
+  <Target Name="CopySQLiteNativeBinaries" AfterTargets="Build">
+    <ItemGroup>
+      <SQLiteNativeFiles Include="packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\**\*.dll" />
+    </ItemGroup>
+    <Copy SourceFiles="@(SQLiteNativeFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" ContinueOnError="true" />
+  </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
-
