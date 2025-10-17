@@ -40,9 +40,38 @@
     <Reference Include="System.Drawing" />
     <Reference Include="System.Windows.Forms" />
     <Reference Include="System.Xml" />
-    <!-- Explicit SQLite managed assembly reference to ensure copy to bin -->
+    <!-- SQLite managed provider -->
     <Reference Include="System.Data.SQLite">
-      <HintPath>..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\lib\net48\System.Data.SQLite.dll</HintPath>
+      <HintPath>..\packages\System.Data.SQLite.Core.1.0.118.0\lib\net48\System.Data.SQLite.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <!-- System.Text.Json and dependencies for .NET Framework 4.8 -->
+    <Reference Include="System.Text.Json">
+      <HintPath>..\packages\System.Text.Json.7.0.3\lib\net472\System.Text.Json.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Text.Encodings.Web">
+      <HintPath>..\packages\System.Text.Encodings.Web.7.0.0\lib\net472\System.Text.Encodings.Web.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Memory">
+      <HintPath>..\packages\System.Memory.4.5.5\lib\net461\System.Memory.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Buffers">
+      <HintPath>..\packages\System.Buffers.4.5.1\lib\net461\System.Buffers.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Runtime.CompilerServices.Unsafe">
+      <HintPath>..\packages\System.Runtime.CompilerServices.Unsafe.6.0.0\lib\net461\System.Runtime.CompilerServices.Unsafe.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Threading.Tasks.Extensions">
+      <HintPath>..\packages\System.Threading.Tasks.Extensions.4.5.4\lib\net461\System.Threading.Tasks.Extensions.dll</HintPath>
+      <Private>True</Private>
+    </Reference>
+    <Reference Include="System.Numerics.Vectors">
+      <HintPath>..\packages\System.Numerics.Vectors.4.5.0\lib\net46\System.Numerics.Vectors.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
@@ -65,12 +94,5 @@
     </None>
     <None Include="App.config" />
   </ItemGroup>
-  <!-- Ensure native SQLite DLLs are copied alongside the exe on build -->
-  <Target Name="CopySQLiteNativeBinaries" AfterTargets="Build">
-    <ItemGroup>
-      <SQLiteNativeFiles Include="..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\**\*.dll" />
-    </ItemGroup>
-    <Copy SourceFiles="@(SQLiteNativeFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" ContinueOnError="true" />
-  </Target>
   <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
 </Project>
