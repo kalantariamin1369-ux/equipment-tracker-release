@@ -36,8 +36,8 @@ jobs:
     - name: MSBuild restore (fallback)
       run: msbuild "${{ steps.paths.outputs.solution }}" /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="${{ steps.paths.outputs.workdir }}\\"
 
-    - name: Build application (solution, x64)
-      run: msbuild "${{ steps.paths.outputs.solution }}" /t:Build /p:Configuration=Release /p:Platform="x64"
+    - name: Build application (project, x64)
+      run: msbuild "${{ steps.paths.outputs.project }}" /t:Build /p:Configuration=Release /p:Platform="x64"
 
     - name: Verify build output
       shell: pwsh
