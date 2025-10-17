@@ -8,7 +8,7 @@ on:
 
 jobs:
   build-and-release:
-    runs-on: windows-2022
+    runs-on: windows-2019
 
     steps:
     - name: Checkout code
@@ -20,21 +20,20 @@ jobs:
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v2
 
-    - name: NuGet restore
-      run: nuget restore EquipmentTracker/EquipmentTracker.sln
+    - name: NuGet restore (project)
+      run: nuget restore EquipmentTracker/EquipmentTracker.csproj
 
     - name: MSBuild restore (fallback)
-      run: msbuild EquipmentTracker/EquipmentTracker.sln /t:Restore
+      run: msbuild EquipmentTracker/EquipmentTracker.csproj /t:Restore
 
-    - name: Build application
-      run: msbuild EquipmentTracker/EquipmentTracker.sln /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=bin/Release/
+    - name: Build application (project)
+      run: msbuild EquipmentTracker/EquipmentTracker.csproj /t:Build /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath="$(ProjectDir)bin\\Release\\"
 
     - name: Verify build output
       shell: pwsh
       run: |
-        if (-not (Test-Path "EquipmentTracker/bin/Release/EquipmentTracker.exe")) {
-          Write-Error "Build output not found at EquipmentTracker/bin/Release/EquipmentTracker.exe"
-        }
+        $exe = "EquipmentTracker\bin\Release\EquipmentTracker.exe"
+        if (-not (Test-Path $exe)) { Write-Error "Missing exe: $exe" }
 
     - name: Create release directory
       run: |
@@ -47,6 +46,24 @@ jobs:
         Copy-Item "EquipmentTracker/bin/Release/EquipmentTracker.exe.config" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
         Copy-Item "EquipmentTracker/bin/Release/*.dll" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
         Copy-Item "EquipmentTracker/bin/Release/*.pdb" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
+
+    - name: Fallback copy SQLite native binaries
+      shell: pwsh
+      run: |
+        $pkgRoots = @(
+          (Join-Path $PWD 'packages'),
+          "$env:USERPROFILE\.nuget",
+          "$env:LOCALAPPDATA\NuGet"
+        )
+        foreach ($root in $pkgRoots) {
+          if (Test-Path $root) {
+            $sqlite = Get-ChildItem -Recurse -Directory $root -ErrorAction SilentlyContinue | Where-Object { $_.Name -like 'Stub.System.Data.SQLite.Core.NetFramework*' } | Select-Object -First 1
+            if ($sqlite) {
+              Copy-Item -Recurse "$($sqlite.FullName)\**\*.dll" "release\EquipmentTracker\" -ErrorAction SilentlyContinue
+              break
+            }
+          }
+        }
 
     - name: Copy documentation
       run: |
@@ -160,7 +177,9 @@ jobs:
         echo "version_display=$version" >> $env:GITHUB_OUTPUT
 
     - name: Create release package
+      shell: pwsh
       run: |
+        if (-not (Test-Path "release\EquipmentTracker\EquipmentTracker.exe")) { Write-Error "Packaging aborted: exe missing in release directory" }
         Compress-Archive -Path "release/*" -DestinationPath "${{ steps.release_info.outputs.artifact_name }}"
 
     - name: Create Release
