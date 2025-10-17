@@ -36,8 +36,8 @@ jobs:
     - name: MSBuild restore (fallback)
       run: msbuild "${{ steps.paths.outputs.solution }}" /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="${{ steps.paths.outputs.workdir }}\\"
 
-    - name: Build application (project, x64)
-      run: msbuild "${{ steps.paths.outputs.project }}" /t:Build /p:Configuration=Release /p:Platform="x64"
+    - name: Build application (project, AnyCPU)
+      run: msbuild "${{ steps.paths.outputs.project }}" /t:Build /p:Configuration=Release /p:Platform="Any CPU"
 
     - name: Verify build output
       shell: pwsh
@@ -57,12 +57,6 @@ jobs:
         Copy-Item "EquipmentTracker/bin/Release/*.dll" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
         Copy-Item "EquipmentTracker/bin/Release/*.pdb" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
 
-    - name: Copy documentation
-      run: |
-        Copy-Item "README.md" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
-        Copy-Item "LICENSE" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
-        Copy-Item "CHANGELOG.md" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
-
     - name: Create installation script
       run: |
         $script = @'
@@ -80,8 +74,6 @@ jobs:
         copy /Y "EquipmentTracker.exe" "%PROGRAMFILES%\EquipmentTracker\"
         copy /Y "*.dll" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
         copy /Y "*.config" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
-        copy /Y "README.md" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
-        copy /Y "LICENSE" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
         
         echo.
         echo Creating desktop shortcut...
@@ -120,41 +112,6 @@ jobs:
         '@
         $script | Out-File -FilePath "release/EquipmentTracker/UNINSTALL.bat" -Encoding ASCII
 
-    - name: Create README for installer
-      run: |
-        $readme = @'
-        # Equipment Tracker - Windows Installer
-        
-        ## Installation Instructions
-        
-        ### Automatic Installation (Recommended)
-        1. Run `INSTALL.bat` as Administrator
-        2. Follow the prompts
-        3. Launch from desktop shortcut or Start Menu
-        
-        ### Manual Installation
-        1. Copy all files to your preferred location (e.g., `C:\Program Files\EquipmentTracker`)
-        2. Run `EquipmentTracker.exe` to start the application
-        
-        ## System Requirements
-        - Windows 10 or later
-        - .NET Framework 4.8 (usually pre-installed)
-        - 50MB free disk space
-        
-        ## First Run
-        - The application will create a database file automatically
-        - No additional configuration required
-        - Data is stored in: `%USERPROFILE%\Documents\EquipmentTracker`
-        
-        ## Uninstallation
-        Run `UNINSTALL.bat` as Administrator to remove the application.
-        Your data files will be preserved.
-        
-        ## Support
-        For issues or questions, visit the repository Issues page.
-        '@
-        $readme | Out-File -FilePath "release/INSTALLATION_README.txt" -Encoding UTF8
-
     - name: Get release info
       id: release_info
       shell: pwsh
@@ -165,7 +122,7 @@ jobs:
         } else {
           $version = $ref
         }
-        echo "artifact_name=EquipmentTracker-Windows-x64-$version.zip" >> $env:GITHUB_OUTPUT
+        echo "artifact_name=EquipmentTracker-Windows-AnyCPU-$version.zip" >> $env:GITHUB_OUTPUT
         echo "version_display=$version" >> $env:GITHUB_OUTPUT
 
     - name: Create release package
@@ -189,23 +146,13 @@ jobs:
           3. Run `INSTALL.bat` as Administrator for automatic installation
           4. Or manually copy files to your preferred location
 
-          ### ✨ Features
-          - Complete equipment inventory management
-          - SQLite database with transaction logging
-          - CSV import/export functionality
-          - Light/Dark theme support
-          - Backup and restore capabilities
-
           ### 🔧 System Requirements
           - Windows 10 or later
           - .NET Framework 4.8 (pre-installed on most systems)
-          - 50MB free disk space
 
           ### 📝 Notes
-          - Run as Administrator for system-wide installation
-          - Desktop shortcut will be created automatically
-          - Data files stored in `Documents\EquipmentTracker`
-          - Use `UNINSTALL.bat` to remove (data preserved)
+          - Built as AnyCPU for broad compatibility
+          - SQLite provider is x64; app runs on 64-bit Windows as a 64-bit process
         draft: false
         prerelease: false
       env:
