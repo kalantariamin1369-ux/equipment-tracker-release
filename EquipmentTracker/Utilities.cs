@@ -74,7 +74,7 @@ namespace EquipmentTracker
 
     public class PropertyComparer<T> : IComparer<T>
     {
-        private readonly IComparer _comparer;
+        private readonly IComparer<object> _comparer;
         private readonly ListSortDirection _direction;
         private readonly PropertyDescriptor _prop;
         private readonly bool _isString;
@@ -132,4 +132,3 @@ namespace EquipmentTracker
         }
     }
 }
-
