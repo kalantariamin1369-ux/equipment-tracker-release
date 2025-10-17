@@ -42,7 +42,7 @@
     <Reference Include="System.Xml" />
     <!-- Explicit SQLite managed assembly reference to ensure copy to bin -->
     <Reference Include="System.Data.SQLite">
-      <HintPath>packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\lib\net48\System.Data.SQLite.dll</HintPath>
+      <HintPath>..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\lib\net48\System.Data.SQLite.dll</HintPath>
       <Private>True</Private>
     </Reference>
   </ItemGroup>
@@ -68,7 +68,7 @@
   <!-- Ensure native SQLite DLLs are copied alongside the exe on build -->
   <Target Name="CopySQLiteNativeBinaries" AfterTargets="Build">
     <ItemGroup>
-      <SQLiteNativeFiles Include="packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\**\*.dll" />
+      <SQLiteNativeFiles Include="..\packages\Stub.System.Data.SQLite.Core.NetFramework.1.0.118.0\**\*.dll" />
     </ItemGroup>
     <Copy SourceFiles="@(SQLiteNativeFiles)" DestinationFolder="$(OutputPath)" SkipUnchangedFiles="true" ContinueOnError="true" />
   </Target>
