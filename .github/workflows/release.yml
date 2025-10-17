@@ -1,0 +1,187 @@
+name: Build and Release Equipment Tracker
+
+on:
+  push:
+    tags:
+      - 'v*'  # Triggers on version tags like v1.0.0, v1.1.0, etc.
+  workflow_dispatch:  # Allows manual trigger
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup .NET Framework
+      uses: microsoft/setup-msbuild@v2
+      
+    - name: Setup NuGet
+      uses: NuGet/setup-nuget@v2
+      
+    - name: Restore NuGet packages
+      run: nuget restore EquipmentTracker/EquipmentTracker.sln
+      
+    - name: Build application
+      run: msbuild EquipmentTracker/EquipmentTracker.sln /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=bin/Release/
+      
+    - name: Create release directory
+      run: |
+        mkdir release
+        mkdir release/EquipmentTracker
+        
+    - name: Copy application files
+      run: |
+        Copy-Item "EquipmentTracker/bin/Release/EquipmentTracker.exe" "release/EquipmentTracker/"
+        Copy-Item "EquipmentTracker/bin/Release/EquipmentTracker.exe.config" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
+        Copy-Item "EquipmentTracker/bin/Release/*.dll" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
+        Copy-Item "EquipmentTracker/bin/Release/*.pdb" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
+        
+    - name: Copy documentation
+      run: |
+        Copy-Item "README.md" "release/EquipmentTracker/"
+        Copy-Item "LICENSE" "release/EquipmentTracker/"
+        Copy-Item "CHANGELOG.md" "release/EquipmentTracker/"
+        
+    - name: Create installation script
+      run: |
+        $script = @'
+        @echo off
+        echo Equipment Tracker Installation
+        echo ==============================
+        echo.
+        echo This will install Equipment Tracker to: %PROGRAMFILES%\EquipmentTracker
+        echo.
+        pause
+        
+        if not exist "%PROGRAMFILES%\EquipmentTracker" mkdir "%PROGRAMFILES%\EquipmentTracker"
+        
+        echo Copying files...
+        copy /Y "EquipmentTracker.exe" "%PROGRAMFILES%\EquipmentTracker\"
+        copy /Y "*.dll" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
+        copy /Y "*.config" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
+        copy /Y "README.md" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
+        copy /Y "LICENSE" "%PROGRAMFILES%\EquipmentTracker\" >nul 2>&1
+        
+        echo.
+        echo Creating desktop shortcut...
+        powershell -Command "$WshShell = New-Object -comObject WScript.Shell; $Shortcut = $WshShell.CreateShortcut('%USERPROFILE%\Desktop\Equipment Tracker.lnk'); $Shortcut.TargetPath = '%PROGRAMFILES%\EquipmentTracker\EquipmentTracker.exe'; $Shortcut.Save()"
+        
+        echo.
+        echo Installation complete!
+        echo You can now run Equipment Tracker from your desktop or start menu.
+        echo.
+        pause
+        '@
+        $script | Out-File -FilePath "release/EquipmentTracker/INSTALL.bat" -Encoding ASCII
+        
+    - name: Create uninstall script
+      run: |
+        $script = @'
+        @echo off
+        echo Equipment Tracker Uninstallation
+        echo =================================
+        echo.
+        echo This will remove Equipment Tracker from your system.
+        echo Your data files will be preserved in: %USERPROFILE%\Documents\EquipmentTracker
+        echo.
+        pause
+        
+        echo Removing application files...
+        if exist "%PROGRAMFILES%\EquipmentTracker" rmdir /S /Q "%PROGRAMFILES%\EquipmentTracker"
+        
+        echo Removing desktop shortcut...
+        if exist "%USERPROFILE%\Desktop\Equipment Tracker.lnk" del "%USERPROFILE%\Desktop\Equipment Tracker.lnk"
+        
+        echo.
+        echo Uninstallation complete!
+        echo.
+        pause
+        '@
+        $script | Out-File -FilePath "release/EquipmentTracker/UNINSTALL.bat" -Encoding ASCII
+        
+    - name: Create README for installer
+      run: |
+        $readme = @'
+        # Equipment Tracker v1.0.0 - Windows Installer
+        
+        ## Installation Instructions
+        
+        ### Automatic Installation (Recommended)
+        1. Run `INSTALL.bat` as Administrator
+        2. Follow the prompts
+        3. Launch from desktop shortcut or Start Menu
+        
+        ### Manual Installation
+        1. Copy all files to your preferred location (e.g., `C:\Program Files\EquipmentTracker`)
+        2. Run `EquipmentTracker.exe` to start the application
+        
+        ## System Requirements
+        - Windows 10 or later
+        - .NET Framework 4.8 (usually pre-installed)
+        - 50MB free disk space
+        
+        ## First Run
+        - The application will create a database file automatically
+        - No additional configuration required
+        - Data is stored in: `%USERPROFILE%\Documents\EquipmentTracker`
+        
+        ## Uninstallation
+        Run `UNINSTALL.bat` as Administrator to remove the application.
+        Your data files will be preserved.
+        
+        ## Support
+        For issues or questions, visit: https://github.com/kalantariamin1369-ux/equipment-tracker-release
+        '@
+        $readme | Out-File -FilePath "release/INSTALLATION_README.txt" -Encoding UTF8
+        
+    - name: Create release package
+      run: |
+        Compress-Archive -Path "release/*" -DestinationPath "EquipmentTracker-Windows-x64-${{ github.ref_name }}.zip"
+        
+    - name: Get release info
+      id: release_info
+      run: |
+        $tag = "${{ github.ref_name }}"
+        $version = $tag -replace '^v', ''
+        echo "version=$version" >> $env:GITHUB_OUTPUT
+        
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: |
+          EquipmentTracker-Windows-x64-${{ github.ref_name }}.zip
+        name: Equipment Tracker ${{ steps.release_info.outputs.version }}
+        body: |
+          ## Equipment Tracker ${{ steps.release_info.outputs.version }}
+          
+          ### 📦 Installation
+          1. Download `EquipmentTracker-Windows-x64-${{ github.ref_name }}.zip`
+          2. Extract to a temporary folder
+          3. Run `INSTALL.bat` as Administrator for automatic installation
+          4. Or manually copy files to your preferred location
+          
+          ### ✨ Features in this release
+          - Complete equipment inventory management
+          - SQLite database with transaction logging
+          - CSV import/export functionality
+          - Light/Dark theme support
+          - Backup and restore capabilities
+          
+          ### 🔧 System Requirements
+          - Windows 10 or later
+          - .NET Framework 4.8 (pre-installed on most systems)
+          - 50MB free disk space
+          
+          ### 📝 Installation Notes
+          - Run as Administrator for system-wide installation
+          - Desktop shortcut will be created automatically
+          - Data files stored in `Documents\EquipmentTracker`
+          - Use `UNINSTALL.bat` to remove (data preserved)
+          
+          For detailed information, see the included `INSTALLATION_README.txt` file.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
