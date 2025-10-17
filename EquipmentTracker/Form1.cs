@@ -660,10 +660,12 @@ namespace EquipmentTracker
 
         private string EscapeCsvField(string field)
         {
-            if (string.IsNullOrEmpty(field)) return """;
-            if (field.Contains(",") || field.Contains("\"") || field.Contains("\n") || field.Contains("\r"))
+            if (string.IsNullOrEmpty(field)) return "";
+            bool needsQuotes = field.Contains(",") || field.Contains("\"") || field.Contains("\n") || field.Contains("\r");
+            if (needsQuotes)
             {
-                return $"\"{field.Replace("\"", "\"\"")}\" ";
+                var escaped = field.Replace("\"", "\"\"");
+                return "\"" + escaped + "\"";
             }
             return field;
         }
@@ -881,4 +883,3 @@ namespace EquipmentTracker
         #endregion
     }
 }
-
