@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Data.SQLite;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
@@ -26,6 +27,12 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                // Ensure foreign key cascades are enforced (SQLite off by default)
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
+
                 string createEquipmentTable = @"
                     CREATE TABLE IF NOT EXISTS Equipment (
                         Id TEXT PRIMARY KEY,
@@ -64,6 +71,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 string sql = "SELECT Id, Name, Quantity, Category, MinStockLevel, LastUpdated FROM Equipment";
                 using (var cmd = new SQLiteCommand(sql, cnn))
                 using (var reader = await cmd.ExecuteReaderAsync())
@@ -75,7 +86,7 @@ namespace EquipmentTracker
                             Id = reader.GetString(0),
                             Name = reader.GetString(1),
                             Quantity = reader.GetInt32(2),
-                            Category = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                            Category = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
                             MinStockLevel = reader.GetInt32(4),
                             LastUpdated = reader.GetDateTime(5)
                         });
@@ -90,6 +101,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 var cmd = new SQLiteCommand("SELECT Id, Name, Quantity, Category, MinStockLevel, LastUpdated FROM Equipment WHERE Id = @id", cnn);
                 cmd.Parameters.AddWithValue("@id", id);
                 using (var reader = await cmd.ExecuteReaderAsync())
@@ -101,7 +116,7 @@ namespace EquipmentTracker
                             Id = reader.GetString(0),
                             Name = reader.GetString(1),
                             Quantity = reader.GetInt32(2),
-                            Category = reader.IsDBNull(3) ? "" : reader.GetString(3),
+                            Category = reader.IsDBNull(3) ? string.Empty : reader.GetString(3),
                             MinStockLevel = reader.GetInt32(4),
                             LastUpdated = reader.GetDateTime(5)
                         };
@@ -116,6 +131,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 var cmd = new SQLiteCommand("SELECT 1 FROM Equipment WHERE Name = @name", cnn);
                 cmd.Parameters.AddWithValue("@name", name);
                 return (await cmd.ExecuteScalarAsync()) != null;
@@ -127,6 +146,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 using (var transaction = cnn.BeginTransaction())
                 {
                     try
@@ -146,7 +169,7 @@ namespace EquipmentTracker
                         logCmd.Parameters.AddWithValue("@type", changeType);
                         logCmd.Parameters.AddWithValue("@old", 0);
                         logCmd.Parameters.AddWithValue("@new", eq.Quantity);
-                        logCmd.Parameters.AddWithValue("@notes", notes);
+                        logCmd.Parameters.AddWithValue("@notes", notes ?? string.Empty);
                         await logCmd.ExecuteNonQueryAsync();
 
                         transaction.Commit();
@@ -167,6 +190,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 using (var transaction = cnn.BeginTransaction())
                 {
                     try
@@ -191,7 +218,7 @@ namespace EquipmentTracker
                             logCmd.Parameters.AddWithValue("@type", changeType);
                             logCmd.Parameters.AddWithValue("@old", 0);
                             logCmd.Parameters.AddWithValue("@new", eq.Quantity);
-                            logCmd.Parameters.AddWithValue("@notes", notes);
+                            logCmd.Parameters.AddWithValue("@notes", notes ?? string.Empty);
                             await logCmd.ExecuteNonQueryAsync();
                         }
 
@@ -213,6 +240,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 using (var transaction = cnn.BeginTransaction())
                 {
                     try
@@ -232,7 +263,7 @@ namespace EquipmentTracker
                         logCmd.Parameters.AddWithValue("@type", changeType);
                         logCmd.Parameters.AddWithValue("@old", oldQuantity);
                         logCmd.Parameters.AddWithValue("@new", eq.Quantity);
-                        logCmd.Parameters.AddWithValue("@notes", notes);
+                        logCmd.Parameters.AddWithValue("@notes", notes ?? string.Empty);
                         await logCmd.ExecuteNonQueryAsync();
 
                         transaction.Commit();
@@ -248,11 +279,15 @@ namespace EquipmentTracker
             }
         }
 
-        public async Task UpdateAsync(Equipment eq) // Simplified update for non-quantity changes (e.g., from grid edit)
+        public async Task UpdateAsync(Equipment eq)
         {
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 var cmd = new SQLiteCommand("UPDATE Equipment SET Name = @name, Category = @cat, MinStockLevel = @min, LastUpdated = @last WHERE Id = @id", cnn);
                 cmd.Parameters.AddWithValue("@id", eq.Id);
                 cmd.Parameters.AddWithValue("@name", eq.Name);
@@ -269,7 +304,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
-                // Due to ON DELETE CASCADE, related transactions will be deleted automatically.
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 var cmd = new SQLiteCommand("DELETE FROM Equipment WHERE Id = @id", cnn);
                 cmd.Parameters.AddWithValue("@id", id);
                 await cmd.ExecuteNonQueryAsync();
@@ -283,6 +321,10 @@ namespace EquipmentTracker
             using (var cnn = GetConnection())
             {
                 await cnn.OpenAsync();
+                using (var pragma = new SQLiteCommand("PRAGMA foreign_keys = ON;", cnn))
+                {
+                    await pragma.ExecuteNonQueryAsync();
+                }
                 var sql = new StringBuilder("SELECT T.Id, T.EquipmentId, E.Name, T.Timestamp, T.ChangeType, T.OldQuantity, T.NewQuantity, T.Notes FROM Transactions T JOIN Equipment E ON T.EquipmentId = E.Id WHERE T.Timestamp BETWEEN @start AND @end");
                 var parameters = new List<SQLiteParameter>
                 {
@@ -314,7 +356,7 @@ namespace EquipmentTracker
                                 ChangeType = reader.GetString(4),
                                 OldQuantity = reader.GetInt32(5),
                                 NewQuantity = reader.GetInt32(6),
-                                Notes = reader.IsDBNull(7) ? "" : reader.GetString(7)
+                                Notes = reader.IsDBNull(7) ? string.Empty : reader.GetString(7)
                             });
                         }
                     }
@@ -324,4 +366,3 @@ namespace EquipmentTracker
         }
     }
 }
-
