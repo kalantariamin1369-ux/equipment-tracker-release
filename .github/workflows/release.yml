@@ -3,47 +3,57 @@ name: Build and Release Equipment Tracker
 on:
   push:
     tags:
-      - 'v*'  # Triggers on version tags like v1.0.0, v1.1.0, etc.
-  workflow_dispatch:  # Allows manual trigger
+      - 'v*'
+  workflow_dispatch:
 
 jobs:
   build-and-release:
-    runs-on: windows-latest
-    
+    runs-on: windows-2022
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
-      
-    - name: Setup .NET Framework
+
+    - name: Setup MSBuild
       uses: microsoft/setup-msbuild@v2
-      
+
     - name: Setup NuGet
       uses: NuGet/setup-nuget@v2
-      
-    - name: Restore NuGet packages
+
+    - name: NuGet restore
       run: nuget restore EquipmentTracker/EquipmentTracker.sln
-      
+
+    - name: MSBuild restore (fallback)
+      run: msbuild EquipmentTracker/EquipmentTracker.sln /t:Restore
+
     - name: Build application
       run: msbuild EquipmentTracker/EquipmentTracker.sln /p:Configuration=Release /p:Platform="Any CPU" /p:OutputPath=bin/Release/
-      
+
+    - name: Verify build output
+      shell: pwsh
+      run: |
+        if (-not (Test-Path "EquipmentTracker/bin/Release/EquipmentTracker.exe")) {
+          Write-Error "Build output not found at EquipmentTracker/bin/Release/EquipmentTracker.exe"
+        }
+
     - name: Create release directory
       run: |
         mkdir release
         mkdir release/EquipmentTracker
-        
+
     - name: Copy application files
       run: |
         Copy-Item "EquipmentTracker/bin/Release/EquipmentTracker.exe" "release/EquipmentTracker/"
         Copy-Item "EquipmentTracker/bin/Release/EquipmentTracker.exe.config" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
         Copy-Item "EquipmentTracker/bin/Release/*.dll" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
         Copy-Item "EquipmentTracker/bin/Release/*.pdb" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
-        
+
     - name: Copy documentation
       run: |
         Copy-Item "README.md" "release/EquipmentTracker/"
         Copy-Item "LICENSE" "release/EquipmentTracker/"
         Copy-Item "CHANGELOG.md" "release/EquipmentTracker/"
-        
+
     - name: Create installation script
       run: |
         $script = @'
@@ -75,7 +85,7 @@ jobs:
         pause
         '@
         $script | Out-File -FilePath "release/EquipmentTracker/INSTALL.bat" -Encoding ASCII
-        
+
     - name: Create uninstall script
       run: |
         $script = @'
@@ -100,11 +110,11 @@ jobs:
         pause
         '@
         $script | Out-File -FilePath "release/EquipmentTracker/UNINSTALL.bat" -Encoding ASCII
-        
+
     - name: Create README for installer
       run: |
         $readme = @'
-        # Equipment Tracker v1.0.0 - Windows Installer
+        # Equipment Tracker - Windows Installer
         
         ## Installation Instructions
         
@@ -132,55 +142,59 @@ jobs:
         Your data files will be preserved.
         
         ## Support
-        For issues or questions, visit: https://github.com/kalantariamin1369-ux/equipment-tracker-release
+        For issues or questions, visit the repository Issues page.
         '@
         $readme | Out-File -FilePath "release/INSTALLATION_README.txt" -Encoding UTF8
-        
-    - name: Create release package
-      run: |
-        Compress-Archive -Path "release/*" -DestinationPath "EquipmentTracker-Windows-x64-${{ github.ref_name }}.zip"
-        
+
     - name: Get release info
       id: release_info
+      shell: pwsh
       run: |
-        $tag = "${{ github.ref_name }}"
-        $version = $tag -replace '^v', ''
-        echo "version=$version" >> $env:GITHUB_OUTPUT
-        
+        $ref = "${{ github.ref_name }}"
+        if ([string]::IsNullOrWhiteSpace($ref) -or $ref -eq "master" -or $ref -eq "main") {
+          $version = "v1.0.0-manual"
+        } else {
+          $version = $ref
+        }
+        echo "artifact_name=EquipmentTracker-Windows-x64-$version.zip" >> $env:GITHUB_OUTPUT
+        echo "version_display=$version" >> $env:GITHUB_OUTPUT
+
+    - name: Create release package
+      run: |
+        Compress-Archive -Path "release/*" -DestinationPath "${{ steps.release_info.outputs.artifact_name }}"
+
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
         files: |
-          EquipmentTracker-Windows-x64-${{ github.ref_name }}.zip
-        name: Equipment Tracker ${{ steps.release_info.outputs.version }}
+          ${{ steps.release_info.outputs.artifact_name }}
+        name: Equipment Tracker ${{ steps.release_info.outputs.version_display }}
         body: |
-          ## Equipment Tracker ${{ steps.release_info.outputs.version }}
-          
+          ## Equipment Tracker ${{ steps.release_info.outputs.version_display }}
+
           ### 📦 Installation
-          1. Download `EquipmentTracker-Windows-x64-${{ github.ref_name }}.zip`
+          1. Download `${{ steps.release_info.outputs.artifact_name }}`
           2. Extract to a temporary folder
           3. Run `INSTALL.bat` as Administrator for automatic installation
           4. Or manually copy files to your preferred location
-          
-          ### ✨ Features in this release
+
+          ### ✨ Features
           - Complete equipment inventory management
           - SQLite database with transaction logging
           - CSV import/export functionality
           - Light/Dark theme support
           - Backup and restore capabilities
-          
+
           ### 🔧 System Requirements
           - Windows 10 or later
           - .NET Framework 4.8 (pre-installed on most systems)
           - 50MB free disk space
-          
-          ### 📝 Installation Notes
+
+          ### 📝 Notes
           - Run as Administrator for system-wide installation
           - Desktop shortcut will be created automatically
           - Data files stored in `Documents\EquipmentTracker`
           - Use `UNINSTALL.bat` to remove (data preserved)
-          
-          For detailed information, see the included `INSTALLATION_README.txt` file.
         draft: false
         prerelease: false
       env:
