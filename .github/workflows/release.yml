@@ -64,6 +64,31 @@ jobs:
     - name: Compile Installer
       shell: pwsh
       run: |
+      run: |
+        pwsh build/installer/preinstall.ps1 -BuildOutput "EquipmentTracker\\bin\\Release" -ReleaseDir "release\\EquipmentTracker"
+
+    - name: Compute version
+      id: ver
+      shell: pwsh
+      run: |
+        if ("${{ github.ref }}" -like "refs/tags/*") {
+          $v = "${{ github.ref_name }}"
+        } else {
+          $v = "v1.0.2"
+        }
+        echo "value=$v" >> $env:GITHUB_OUTPUT
+
+    - name: Create Portable zip
+      shell: pwsh
+      run: |
+        Compress-Archive -Path "release/*" -DestinationPath "EquipmentTracker-Portable-x64-${{ steps.ver.outputs.value }}.zip"
+
+    - name: Install Inno Setup
+      run: choco install innosetup -y
+
+    - name: Compile Installer
+      shell: pwsh
+      run: |
         & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" build/installer/EquipmentTracker.iss
 
     - name: Compute release metadata
@@ -71,6 +96,7 @@ jobs:
       shell: pwsh
       run: |
         $tag = if ("${{ github.ref }}" -like "refs/tags/*") { "${{ github.ref_name }}" } else { "v1.0.2" }
+        $tag = "${{ steps.ver.outputs.value }}"
         echo "tag=$tag" >> $env:GITHUB_OUTPUT
         echo "portable=EquipmentTracker-Portable-x64-$tag.zip" >> $env:GITHUB_OUTPUT
         $setup = Get-ChildItem dist -Filter "EquipmentTracker-Setup-x64-*.exe" | Select-Object -First 1
