@@ -1,4 +1,4 @@
-name: Build and Release Equipment Tracker
+name: Release
 
 on:
   push:
@@ -10,10 +10,10 @@ permissions:
   contents: write
 
 jobs:
-  build-and-release:
+  build:
     runs-on: windows-2022
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
       - name: Setup MSBuild
@@ -22,32 +22,21 @@ jobs:
       - name: Setup NuGet
         uses: NuGet/setup-nuget@v2
 
-      - name: Determine solution directory
-        id: paths
-        shell: pwsh
+      - name: Restore
         run: |
-          $sol = Join-Path $PWD 'EquipmentTracker/EquipmentTracker.sln'
-          $proj = Join-Path $PWD 'EquipmentTracker/EquipmentTracker.csproj'
-          echo "solution=$sol" >> $env:GITHUB_OUTPUT
-          echo "project=$proj" >> $env:GITHUB_OUTPUT
-          echo "workdir=$PWD" >> $env:GITHUB_OUTPUT
+          nuget restore "EquipmentTracker/EquipmentTracker.sln" -PackagesDirectory packages
+          msbuild "EquipmentTracker/EquipmentTracker.sln" /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="${{ github.workspace }}\\"
 
-      - name: NuGet restore (solution)
-        run: nuget restore "${{ steps.paths.outputs.solution }}" -PackagesDirectory packages
+      - name: Build (Release)
+        run: msbuild "EquipmentTracker/EquipmentTracker.csproj" /t:Build /p:Configuration=Release
 
-      - name: MSBuild restore (fallback)
-        run: msbuild "${{ steps.paths.outputs.solution }}" /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="${{ steps.paths.outputs.workdir }}\\"
-
-      - name: Build application (Release)
-        run: msbuild "${{ steps.paths.outputs.project }}" /t:Build /p:Configuration=Release
-
-      - name: Verify build output
+      - name: Verify output
         shell: pwsh
         run: |
           $exe = "EquipmentTracker\\bin\\Release\\EquipmentTracker.exe"
-          if (-not (Test-Path $exe)) { Write-Error "Missing exe: $exe" }
+          if (-not (Test-Path $exe)) { throw "Missing exe: $exe" }
 
-      - name: Preinstall: enforce config and copy binaries
+      - name: Preinstall step
         shell: pwsh
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File "build/installer/preinstall.ps1" -BuildOutput "EquipmentTracker\\bin\\Release" -ReleaseDir "release\\EquipmentTracker"
@@ -56,14 +45,10 @@ jobs:
         id: ver
         shell: pwsh
         run: |
-          if ("${{ github.ref }}" -like "refs/tags/*") {
-            $v = "${{ github.ref_name }}"
-          } else {
-            $v = "v1.0.4"
-          }
+          if ("${{ github.ref }}" -like "refs/tags/*") { $v = "${{ github.ref_name }}" } else { $v = "v1.0.4" }
           echo "value=$v" >> $env:GITHUB_OUTPUT
 
-      - name: Create Portable zip
+      - name: Portable zip
         shell: pwsh
         run: |
           Compress-Archive -Path "release/*" -DestinationPath "EquipmentTracker-Portable-x64-${{ steps.ver.outputs.value }}.zip"
@@ -71,43 +56,34 @@ jobs:
       - name: Install Inno Setup
         run: choco install innosetup -y
 
-      - name: Compile Installer
+      - name: Build installer
         shell: pwsh
         run: |
           & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" build/installer/EquipmentTracker.iss
 
-      - name: Compute release metadata
-        id: rel
+      - name: Collect artifacts
+        id: paths
         shell: pwsh
         run: |
           $tag = "${{ steps.ver.outputs.value }}"
-          echo "tag=$tag" >> $env:GITHUB_OUTPUT
           echo "portable=EquipmentTracker-Portable-x64-$tag.zip" >> $env:GITHUB_OUTPUT
-          if (-not (Test-Path "dist")) { Write-Error "Inno output folder 'dist' not found." }
-          dir dist
+          if (-not (Test-Path "dist")) { throw "dist not found" }
           $setup = Get-ChildItem dist -Filter "EquipmentTracker-Setup-x64-*.exe" | Select-Object -First 1
-          if (-not $setup) { Write-Error "Installer exe not found under 'dist'." }
+          if (-not $setup) { throw "installer not found" }
           echo "setup=$($setup.FullName)" >> $env:GITHUB_OUTPUT
 
-      - name: Create Release
+      - name: Publish Release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ steps.rel.outputs.tag }}
+          tag_name: ${{ steps.ver.outputs.value }}
           files: |
-            ${{ steps.rel.outputs.portable }}
-            ${{ steps.rel.outputs.setup }}
-          name: Equipment Tracker ${{ steps.rel.outputs.tag }}
+            ${{ steps.paths.outputs.portable }}
+            ${{ steps.paths.outputs.setup }}
+          name: Equipment Tracker ${{ steps.ver.outputs.value }}
           body: |
-            ## Equipment Tracker ${{ steps.rel.outputs.tag }}
+            ## Equipment Tracker ${{ steps.ver.outputs.value }}
 
-            ### Installer
-            - Use the .exe Setup to install with shortcuts
-
-            ### Portable
-            - Use the Portable zip to unzip-and-run
-
-            ### Requirements
-            - Windows 10 or later
-            - .NET Framework 4.8
+            - Setup and Portable builds
+            - Requirements: Windows 10+, .NET Framework 4.8
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
