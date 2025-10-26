@@ -39,7 +39,7 @@ jobs:
     - name: MSBuild restore (fallback)
       run: msbuild "${{ steps.paths.outputs.solution }}" /t:Restore /p:RestorePackagesConfig=true /p:SolutionDir="${{ steps.paths.outputs.workdir }}\\"
 
-    - name: Build application (project, default config)
+    - name: Build application (Release)
       run: msbuild "${{ steps.paths.outputs.project }}" /t:Build /p:Configuration=Release
 
     - name: Verify build output
@@ -48,67 +48,54 @@ jobs:
         $exe = "EquipmentTracker\\bin\\Release\\EquipmentTracker.exe"
         if (-not (Test-Path $exe)) { Write-Error "Missing exe: $exe" }
 
-    - name: Create release directory
-      run: |
-        mkdir release
-        mkdir release/EquipmentTracker
-
-    - name: Copy application files
-      run: |
-        Copy-Item "EquipmentTracker/bin/Release/EquipmentTracker.exe" "release/EquipmentTracker/"
-        Copy-Item "EquipmentTracker/bin/Release/EquipmentTracker.exe.config" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
-        Copy-Item "EquipmentTracker/bin/Release/*.dll" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
-        Copy-Item "EquipmentTracker/bin/Release/*.pdb" "release/EquipmentTracker/" -ErrorAction SilentlyContinue
-
-    - name: Compute version and tag
-      id: release_info
+    - name: Preinstall: enforce config and copy binaries
       shell: pwsh
       run: |
-        $ref = "${{ github.ref }}"
-        $refName = "${{ github.ref_name }}"
-        if ($ref -like "refs/tags/*") {
-          $tag = $refName
-          $version = $refName
-        } elseif ([string]::IsNullOrWhiteSpace($refName) -or $refName -eq "master" -or $refName -eq "main") {
-          $tag = "v1.0.1-manual"
-          $version = $tag
-        } else {
-          $tag = "v1.0.1-manual"
-          $version = $refName
-        }
-        echo "tag_name=$tag" >> $env:GITHUB_OUTPUT
-        echo "version_display=$version" >> $env:GITHUB_OUTPUT
-        echo "artifact_name=EquipmentTracker-Windows-AnyCPU-$version.zip" >> $env:GITHUB_OUTPUT
+        pwsh build/installer/preinstall.ps1 -BuildOutput "EquipmentTracker\\bin\\Release" -ReleaseDir "release\\EquipmentTracker"
 
-    - name: Create release package
+    - name: Create Portable zip
       shell: pwsh
       run: |
-        if (-not (Test-Path "release\EquipmentTracker\EquipmentTracker.exe")) { Write-Error "Packaging aborted: exe missing in release directory" }
-        Compress-Archive -Path "release/*" -DestinationPath "${{ steps.release_info.outputs.artifact_name }}"
+        Compress-Archive -Path "release/*" -DestinationPath "EquipmentTracker-Portable-x64-${{ github.ref_name || 'v1.0.2' }}.zip"
+
+    - name: Install Inno Setup
+      run: choco install innosetup -y
+
+    - name: Compile Installer
+      shell: pwsh
+      run: |
+        & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" build/installer/EquipmentTracker.iss
+
+    - name: Compute release metadata
+      id: rel
+      shell: pwsh
+      run: |
+        $tag = if ("${{ github.ref }}" -like "refs/tags/*") { "${{ github.ref_name }}" } else { "v1.0.2" }
+        echo "tag=$tag" >> $env:GITHUB_OUTPUT
+        echo "portable=EquipmentTracker-Portable-x64-$tag.zip" >> $env:GITHUB_OUTPUT
+        $setup = Get-ChildItem dist -Filter "EquipmentTracker-Setup-x64-*.exe" | Select-Object -First 1
+        echo "setup=$($setup.FullName)" >> $env:GITHUB_OUTPUT
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
       with:
-        tag_name: ${{ steps.release_info.outputs.tag_name }}
+        tag_name: ${{ steps.rel.outputs.tag }}
         files: |
-          ${{ steps.release_info.outputs.artifact_name }}
-        name: Equipment Tracker ${{ steps.release_info.outputs.version_display }}
+          ${{ steps.rel.outputs.portable }}
+          ${{ steps.rel.outputs.setup }}
+        name: Equipment Tracker ${{ steps.rel.outputs.tag }}
         body: |
-          ## Equipment Tracker ${{ steps.release_info.outputs.version_display }}
+          ## Equipment Tracker ${{ steps.rel.outputs.tag }}
 
-          ### 📦 Installation
-          1. Download `${{ steps.release_info.outputs.artifact_name }}`
-          2. Extract to a temporary folder
-          3. Run `INSTALL.bat` as Administrator for automatic installation
-          4. Or manually copy files to your preferred location
+          ### Installer
+          - Use the .exe Setup to install with shortcuts
 
-          ### 🔧 System Requirements
+          ### Portable
+          - Use the Portable zip to unzip-and-run
+
+          ### Requirements
           - Windows 10 or later
-          - .NET Framework 4.8 (pre-installed on most systems)
-
-          ### 📝 Notes
-          - Built as AnyCPU for broad compatibility
-          - SQLite provider is x64; app runs on 64-bit Windows as a 64-bit process
+          - .NET Framework 4.8
         draft: false
         prerelease: false
       env:
