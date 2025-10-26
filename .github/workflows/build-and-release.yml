@@ -1,0 +1,85 @@
+name: Build and Release Equipment Tracker
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Setup WiX Toolset
+        uses: wix-toolset/toolset-action@v1
+        with:
+          version: v3
+
+      - name: Build and Run Tests
+        run: |
+          # Build the solution to ensure all projects, including tests, are compiled
+          msbuild EquipmentTracker.sln /p:Configuration=Release /t:Build
+          
+          # Run tests. Assuming test project is in EquipmentTracker.Tests
+          vstest.console.exe "EquipmentTracker.Tests\bin\Release\EquipmentTracker.Tests.dll" /Platform:x86 /logger:trx
+        shell: cmd
+
+      - name: Decode Code Signing Certificate
+        run: |
+          $pfx_cert_b64 = "${{ secrets.CODE_SIGNING_CERT_B64 }}"
+          $pfx_cert_path = "my_cert.pfx"
+          [System.IO.File]::WriteAllBytes($pfx_cert_path, [System.Convert]::FromBase64String($pfx_cert_b64))
+        shell: pwsh
+
+      - name: Extract Changelog Entry
+        id: changelog
+        uses: mindsers/changelog-reader-action@v2
+        with:
+          version: ${{ github.ref_name }}
+          path: CHANGELOG.md
+
+      - name: Build and Sign Binaries and Installers
+        run: |
+          mkdir dist
+
+          foreach ($platform in "x86", "x64") {
+            Write-Host "--- Building for $platform ---"
+
+            $project_name = "EquipmentTracker"
+            $solution_file = "${project_name}.sln"
+            $output_dir = "dist"
+            $msi_output_name = "${project_name}_Installer_${{ github.ref_name }}_${platform}.msi"
+            $project_output_dir = "${project_name}\bin\$platform\Release"
+            $signtool_path = "C:\Program Files (x86)\Windows Kits\10\bin\10.0.22621.0\$platform\signtool.exe" 
+
+            msbuild $solution_file /p:Configuration=Release /p:Platform=$platform /t:Rebuild
+
+            & $signtool_path sign /f my_cert.pfx /p "${{ secrets.CODE_SIGNING_PASSWORD }}" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "${project_output_dir}\${project_name}.exe"
+
+            & "C:\Program Files (x86)\WiX Toolset v3.11\bin\heat.exe" dir $project_output_dir -dr INSTALLFOLDER -cg ApplicationComponents -gg -scom -sreg -sfrag -srd -out "Installer\Heat-Generated.wxs"
+
+            & "C:\Program Files (x86)\WiX Toolset v3.11\bin\candle.exe" "Installer\Product.wxs" "Installer\Heat-Generated.wxs" "Installer\CustomDialogs.wxs" -dPlatform=$platform -o "Installer\"
+
+            & "C:\Program Files (x86)\WiX Toolset v3.11\bin\light.exe" "Installer\*.wixobj" -ext WixUIExtension -ext WixUtilExtension -o "${output_dir}\${msi_output_name}"
+
+            & $signtool_path sign /f my_cert.pfx /p "${{ secrets.CODE_SIGNING_PASSWORD }}" /tr http://timestamp.digicert.com /td sha256 /fd sha256 "${output_dir}\${msi_output_name}"
+            
+            Remove-Item "Installer\Heat-Generated.wxs"
+            Remove-Item "Installer\*.wixobj"
+          }
+        shell: pwsh
+
+      - name: Create Draft Release and Upload Assets
+        uses: softprops/action-gh-release@v1
+        with:
+          draft: true
+          body: ${{ steps.changelog.outputs.body }}
+          files: |
+            dist/EquipmentTracker_Installer_${{ github.ref_name }}_x86.msi
+            dist/EquipmentTracker_Installer_${{ github.ref_name }}_x64.msi
