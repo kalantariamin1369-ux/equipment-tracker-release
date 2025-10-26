@@ -41,12 +41,14 @@ jobs:
         run: |
           powershell -NoProfile -ExecutionPolicy Bypass -File "build/installer/preinstall.ps1" -BuildOutput "EquipmentTracker\\bin\\Release" -ReleaseDir "release\\EquipmentTracker"
 
-      - name: Compute version
+      - name: Compute version & payload path
         id: ver
         shell: pwsh
         run: |
           if ("${{ github.ref }}" -like "refs/tags/*") { $v = "${{ github.ref_name }}" } else { $v = "v1.0.4" }
+          $payload = Join-Path "${{ github.workspace }}" "release/EquipmentTracker"
           echo "value=$v" >> $env:GITHUB_OUTPUT
+          echo "payload=$payload" >> $env:GITHUB_OUTPUT
 
       - name: Portable zip
         shell: pwsh
@@ -59,7 +61,8 @@ jobs:
       - name: Build installer
         shell: pwsh
         run: |
-          & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" build/installer/EquipmentTracker.iss
+          $payload = "${{ steps.ver.outputs.payload }}"
+          & "C:\\Program Files (x86)\\Inno Setup 6\\ISCC.exe" "/DBuildPayload=$payload" build/installer/EquipmentTracker.iss
 
       - name: Collect artifacts
         id: paths
@@ -68,6 +71,7 @@ jobs:
           $tag = "${{ steps.ver.outputs.value }}"
           echo "portable=EquipmentTracker-Portable-x64-$tag.zip" >> $env:GITHUB_OUTPUT
           if (-not (Test-Path "dist")) { throw "dist not found" }
+          dir dist
           $setup = Get-ChildItem dist -Filter "EquipmentTracker-Setup-x64-*.exe" | Select-Object -First 1
           if (-not $setup) { throw "installer not found" }
           echo "setup=$($setup.FullName)" >> $env:GITHUB_OUTPUT
