@@ -2,7 +2,7 @@
 #define AppName "Equipment Tracker"
 #define AppVersion GetEnv("GITHUB_REF_NAME")
 #ifndef AppVersion
-  #define AppVersion "v1.0.2"
+  #define AppVersion "v1.0.4"
 #endif
 #define AppPublisher "kalantariamin1369-ux"
 #define AppExeName "EquipmentTracker.exe"
@@ -28,7 +28,8 @@ SetupLogging=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-Source: "release\EquipmentTracker\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+; Fix path: the workflow copies build output to release\EquipmentTracker from repo root
+Source: "..\release\EquipmentTracker\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
 Name: "{group}\Equipment Tracker"; Filename: "{app}\{#AppExeName}"
