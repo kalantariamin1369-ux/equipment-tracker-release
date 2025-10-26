@@ -53,6 +53,20 @@ jobs:
       run: |
         pwsh build/installer/preinstall.ps1 -BuildOutput "EquipmentTracker\\bin\\Release" -ReleaseDir "release\\EquipmentTracker"
 
+    - name: Create Portable zip
+      shell: pwsh
+      run: |
+        Compress-Archive -Path "release/*" -DestinationPath "EquipmentTracker-Portable-x64-${{ github.ref_name || 'v1.0.2' }}.zip"
+
+    - name: Install Inno Setup
+      run: choco install innosetup -y
+
+    - name: Compile Installer
+      shell: pwsh
+      run: |
+      run: |
+        pwsh build/installer/preinstall.ps1 -BuildOutput "EquipmentTracker\\bin\\Release" -ReleaseDir "release\\EquipmentTracker"
+
     - name: Compute version
       id: ver
       shell: pwsh
@@ -81,6 +95,7 @@ jobs:
       id: rel
       shell: pwsh
       run: |
+        $tag = if ("${{ github.ref }}" -like "refs/tags/*") { "${{ github.ref_name }}" } else { "v1.0.2" }
         $tag = "${{ steps.ver.outputs.value }}"
         echo "tag=$tag" >> $env:GITHUB_OUTPUT
         echo "portable=EquipmentTracker-Portable-x64-$tag.zip" >> $env:GITHUB_OUTPUT
