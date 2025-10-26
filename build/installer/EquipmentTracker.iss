@@ -28,8 +28,8 @@ SetupLogging=yes
 Name: "english"; MessagesFile: "compiler:Default.isl"
 
 [Files]
-; Fix path: the workflow copies build output to release\EquipmentTracker from repo root
-Source: "..\release\EquipmentTracker\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
+; Use absolute path resolved by Actions before ISCC call via /D switch
+Source: "{#BuildPayload}\*"; DestDir: "{app}"; Flags: recursesubdirs ignoreversion
 
 [Icons]
 Name: "{group}\Equipment Tracker"; Filename: "{app}\{#AppExeName}"
